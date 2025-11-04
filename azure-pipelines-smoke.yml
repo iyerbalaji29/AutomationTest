@@ -1,0 +1,71 @@
+# Azure DevOps Pipeline - Smoke Tests Only
+# Quick pipeline for running smoke tests in Chrome
+
+trigger: none  # Manual trigger only
+
+pr: none
+
+parameters:
+  - name: environment
+    displayName: 'Target Environment'
+    type: string
+    default: 'Test'
+    values:
+      - Test
+      - Staging
+      - Production
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.x'
+
+stages:
+  - stage: SmokeTests
+    displayName: 'Smoke Tests'
+    jobs:
+      - job: RunSmokeTests
+        displayName: 'Execute Smoke Tests'
+        pool:
+          vmImage: 'windows-latest'
+
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore & Build'
+            inputs:
+              command: 'build'
+              projects: '**/*.csproj'
+              arguments: '--configuration $(buildConfiguration)'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run Smoke Tests'
+            inputs:
+              command: 'test'
+              projects: '**/UITests.csproj'
+              arguments: >
+                --configuration $(buildConfiguration)
+                --no-build
+                --logger "trx"
+                --results-directory $(Build.SourcesDirectory)/TestResults
+                --filter "Category=smoke&Category=chrome"
+            continueOnError: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Test Results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '**/TestResults/*.trx'
+              testRunTitle: 'Smoke Tests - ${{ parameters.environment }}'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Screenshots'
+            condition: always()
+            inputs:
+              PathtoPublish: '$(Build.SourcesDirectory)/UITests/Screenshots'
+              ArtifactName: 'Screenshots'

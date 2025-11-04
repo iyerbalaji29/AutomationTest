@@ -1,0 +1,110 @@
+# Azure DevOps Pipeline - Full Regression Suite
+# Comprehensive test execution across all browsers
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - README.md
+
+schedules:
+  - cron: "0 2 * * *"  # Run daily at 2 AM
+    displayName: 'Nightly Regression Tests'
+    branches:
+      include:
+        - main
+    always: true
+
+parameters:
+  - name: environment
+    displayName: 'Target Environment'
+    type: string
+    default: 'Test'
+    values:
+      - Test
+      - Staging
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.x'
+
+stages:
+  - stage: FullRegressionTests
+    displayName: 'Full Regression Test Suite'
+    jobs:
+      - job: RegressionTests
+        displayName: 'Run All Regression Tests'
+        pool:
+          vmImage: 'windows-latest'
+
+        strategy:
+          maxParallel: 3
+          matrix:
+            Chrome:
+              browserTag: 'chrome'
+            Firefox:
+              browserTag: 'firefox'
+            Edge:
+              browserTag: 'edge'
+
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Build Solution'
+            inputs:
+              command: 'build'
+              projects: '**/*.csproj'
+              arguments: '--configuration $(buildConfiguration)'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run Regression Tests - $(browserTag)'
+            inputs:
+              command: 'test'
+              projects: '**/UITests.csproj'
+              arguments: >
+                --configuration $(buildConfiguration)
+                --no-build
+                --logger "trx;LogFileName=regression_$(browserTag).trx"
+                --results-directory $(Build.SourcesDirectory)/TestResults
+                --filter "Category=regression&Category=$(browserTag)"
+                --collect:"XPlat Code Coverage"
+            continueOnError: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Test Results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '**/TestResults/*.trx'
+              mergeTestResults: true
+              testRunTitle: 'Regression Tests - $(browserTag)'
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish Code Coverage'
+            condition: always()
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(Build.SourcesDirectory)/TestResults/**/coverage.cobertura.xml'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Test Artifacts'
+            condition: always()
+            inputs:
+              PathtoPublish: '$(Build.SourcesDirectory)/UITests'
+              ArtifactName: 'RegressionResults-$(browserTag)'
+
+          - task: PowerShell@2
+            displayName: 'Send Test Summary Email'
+            condition: always()
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host "Test execution completed for $(browserTag)"
+                Write-Host "Results published to Azure DevOps"

@@ -1,0 +1,330 @@
+# Azure DevOps Pipeline for Automation Test Framework
+# Supports multi-browser testing, tag-based execution, and comprehensive reporting
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+      - feature/*
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+parameters:
+  - name: testTags
+    displayName: 'Test Tags (comma-separated, e.g., smoke,chrome or leave empty for all)'
+    type: string
+    default: ''
+
+  - name: browser
+    displayName: 'Browser to run tests'
+    type: string
+    default: 'chrome'
+    values:
+      - chrome
+      - firefox
+      - edge
+      - all
+
+  - name: environment
+    displayName: 'Target Environment'
+    type: string
+    default: 'Test'
+    values:
+      - Test
+      - Staging
+      - Production
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.x'
+  testResultsDirectory: '$(Build.SourcesDirectory)/TestResults'
+  testReportsDirectory: '$(Build.SourcesDirectory)/UITests/TestReports'
+  screenshotsDirectory: '$(Build.SourcesDirectory)/UITests/Screenshots'
+  logsDirectory: '$(Build.SourcesDirectory)/UITests/Logs'
+
+stages:
+  - stage: Build
+    displayName: 'Build Stage'
+    jobs:
+      - job: BuildJob
+        displayName: 'Build Solution'
+        pool:
+          vmImage: 'windows-latest'
+
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore NuGet Packages'
+            inputs:
+              command: 'restore'
+              projects: '**/*.csproj'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Build Solution'
+            inputs:
+              command: 'build'
+              projects: '**/*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-restore'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Build Artifacts'
+            inputs:
+              PathtoPublish: '$(Build.SourcesDirectory)'
+              ArtifactName: 'drop'
+              publishLocation: 'Container'
+
+  - stage: Test
+    displayName: 'Test Stage'
+    dependsOn: Build
+    jobs:
+      - job: RunTests
+        displayName: 'Execute Automation Tests'
+        pool:
+          vmImage: 'windows-latest'
+
+        strategy:
+          ${{ if eq(parameters.browser, 'all') }}:
+            matrix:
+              Chrome:
+                browserTag: 'chrome'
+              Firefox:
+                browserTag: 'firefox'
+              Edge:
+                browserTag: 'edge'
+          ${{ else }}:
+            matrix:
+              SingleBrowser:
+                browserTag: ${{ parameters.browser }}
+
+        steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: 'Download Build Artifacts'
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'drop'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+
+          - powershell: |
+              Write-Host "##vso[task.setvariable variable=ENVIRONMENT]${{ parameters.environment }}"
+              Write-Host "Environment set to: ${{ parameters.environment }}"
+            displayName: 'Set Environment Variable'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run Tests - All'
+            condition: and(succeeded(), eq('${{ parameters.testTags }}', ''))
+            inputs:
+              command: 'test'
+              projects: '**/UITests.csproj'
+              arguments: >
+                --configuration $(buildConfiguration)
+                --no-build
+                --logger "trx;LogFileName=testresults_$(browserTag).trx"
+                --results-directory $(testResultsDirectory)
+                --filter "Category=$(browserTag)"
+                --collect:"XPlat Code Coverage"
+            continueOnError: true
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run Tests - Tagged (${{ parameters.testTags }})'
+            condition: and(succeeded(), ne('${{ parameters.testTags }}', ''))
+            inputs:
+              command: 'test'
+              projects: '**/UITests.csproj'
+              arguments: >
+                --configuration $(buildConfiguration)
+                --no-build
+                --logger "trx;LogFileName=testresults_$(browserTag)_tagged.trx"
+                --results-directory $(testResultsDirectory)
+                --filter "Category=$(browserTag)&Category=${{ parameters.testTags }}"
+                --collect:"XPlat Code Coverage"
+            continueOnError: true
+
+          - task: PublishTestResults@2
+            displayName: 'Publish Test Results'
+            condition: always()
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '$(testResultsDirectory)/**/*.trx'
+              mergeTestResults: true
+              failTaskOnFailedTests: false
+              testRunTitle: 'Automation Tests - $(browserTag) - ${{ parameters.environment }}'
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish Code Coverage'
+            condition: always()
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
+
+          - task: CopyFiles@2
+            displayName: 'Copy Test Reports'
+            condition: always()
+            inputs:
+              SourceFolder: '$(testReportsDirectory)'
+              Contents: '**/*'
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/TestReports'
+              flattenFolders: false
+
+          - task: CopyFiles@2
+            displayName: 'Copy Screenshots'
+            condition: always()
+            inputs:
+              SourceFolder: '$(screenshotsDirectory)'
+              Contents: '**/*.png'
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/Screenshots'
+              flattenFolders: false
+
+          - task: CopyFiles@2
+            displayName: 'Copy Logs'
+            condition: always()
+            inputs:
+              SourceFolder: '$(logsDirectory)'
+              Contents: '**/*.txt'
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/Logs'
+              flattenFolders: false
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Test Artifacts'
+            condition: always()
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'TestResults-$(browserTag)'
+              publishLocation: 'Container'
+
+          - powershell: |
+              # Generate test summary
+              $trxFiles = Get-ChildItem -Path "$(testResultsDirectory)" -Filter "*.trx" -Recurse
+              $totalTests = 0
+              $passedTests = 0
+              $failedTests = 0
+
+              foreach ($trxFile in $trxFiles) {
+                [xml]$trx = Get-Content $trxFile.FullName
+                $counters = $trx.TestRun.ResultSummary.Counters
+                $totalTests += [int]$counters.total
+                $passedTests += [int]$counters.passed
+                $failedTests += [int]$counters.failed
+              }
+
+              $successRate = if ($totalTests -gt 0) { [math]::Round(($passedTests / $totalTests) * 100, 2) } else { 0 }
+
+              Write-Host "##vso[task.setvariable variable=TotalTests]$totalTests"
+              Write-Host "##vso[task.setvariable variable=PassedTests]$passedTests"
+              Write-Host "##vso[task.setvariable variable=FailedTests]$failedTests"
+              Write-Host "##vso[task.setvariable variable=SuccessRate]$successRate"
+
+              Write-Host "Total Tests: $totalTests"
+              Write-Host "Passed: $passedTests"
+              Write-Host "Failed: $failedTests"
+              Write-Host "Success Rate: $successRate%"
+            displayName: 'Calculate Test Statistics'
+            condition: always()
+
+          - task: PowerShell@2
+            displayName: 'Fail Pipeline if Tests Failed'
+            condition: and(always(), gt(variables['FailedTests'], 0))
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host "##vso[task.logissue type=error]$(FailedTests) test(s) failed. Please review the test results."
+                exit 1
+
+  - stage: Report
+    displayName: 'Generate Reports'
+    dependsOn: Test
+    condition: always()
+    jobs:
+      - job: GenerateReports
+        displayName: 'Consolidate Test Reports'
+        pool:
+          vmImage: 'windows-latest'
+
+        steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: 'Download Test Artifacts'
+            inputs:
+              buildType: 'current'
+              downloadType: 'specific'
+              itemPattern: 'TestResults-*/**'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - powershell: |
+              # Create consolidated report
+              $reportPath = "$(Build.ArtifactStagingDirectory)/ConsolidatedReport.md"
+
+              $markdown = @"
+              # Automation Test Execution Report
+
+              **Pipeline:** $(Build.DefinitionName)
+              **Build Number:** $(Build.BuildNumber)
+              **Environment:** ${{ parameters.environment }}
+              **Browser:** ${{ parameters.browser }}
+              **Tags:** ${{ parameters.testTags }}
+              **Execution Date:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+
+              ## Test Results
+
+              | Browser | Total | Passed | Failed | Success Rate |
+              |---------|-------|--------|--------|--------------|
+              "@ | Out-File -FilePath $reportPath
+
+              # Add results for each browser
+              $artifacts = Get-ChildItem -Path "$(System.ArtifactsDirectory)" -Directory
+              foreach ($artifact in $artifacts) {
+                $trxFiles = Get-ChildItem -Path $artifact.FullName -Filter "*.trx" -Recurse
+                foreach ($trxFile in $trxFiles) {
+                  [xml]$trx = Get-Content $trxFile.FullName
+                  $counters = $trx.TestRun.ResultSummary.Counters
+                  $total = [int]$counters.total
+                  $passed = [int]$counters.passed
+                  $failed = [int]$counters.failed
+                  $successRate = if ($total -gt 0) { [math]::Round(($passed / $total) * 100, 2) } else { 0 }
+
+                  $browserName = $artifact.Name -replace 'TestResults-', ''
+                  "| $browserName | $total | ✅ $passed | ❌ $failed | $successRate% |" | Out-File -FilePath $reportPath -Append
+                }
+              }
+
+              @"
+
+              ## Artifacts
+
+              - Test Reports: Available in build artifacts
+              - Screenshots: Available for failed tests
+              - Logs: Detailed execution logs available
+
+              ---
+              *Generated by Azure DevOps Pipeline*
+              "@ | Out-File -FilePath $reportPath -Append
+
+              Write-Host "Consolidated report generated"
+              Get-Content $reportPath
+            displayName: 'Generate Consolidated Report'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Consolidated Report'
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)/ConsolidatedReport.md'
+              ArtifactName: 'ConsolidatedReport'
+              publishLocation: 'Container'
