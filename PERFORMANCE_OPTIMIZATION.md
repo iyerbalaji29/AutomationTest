@@ -6,45 +6,70 @@ This document describes the performance optimizations implemented in the test au
 
 ## Key Performance Improvements
 
-### 1. Browser Instance Reuse
+### 1. Browser Instance Reuse (Global Session)
 
 **Before Optimization:**
 - Browser opened and closed for EVERY single test
 - 10 tests = 10 browser launches (very slow)
 - Example: 5 seconds per browser launch × 10 tests = 50 seconds overhead
 
-**After Optimization:**
-- Browser opened ONCE per test fixture
-- 10 tests in same fixture = 1 browser launch
+**After Optimization (Current Architecture):**
+- Browser opened ONCE for the ENTIRE test run (not per fixture, but globally!)
+- 100 tests across all fixtures = 1 browser launch
 - Example: 5 seconds per browser launch × 1 = 5 seconds overhead
-- **Result: 90% reduction in browser overhead**
+- **Result: 90%+ reduction in browser overhead**
+
+**Implementation:**
+- Uses `BrowserSessionManager` singleton pattern
+- Browser initialized in `GlobalSetup` ([SetUpFixture])
+- All test fixtures share the same browser instance
+- Session clearing between tests maintains isolation
 
 #### Implementation Details
 
-**Using `[OneTimeSetUp]` and `[OneTimeTearDown]`:**
+**Global Browser Setup (Runs ONCE for entire test run):**
+
+```csharp
+// UITests/GlobalSetup.cs
+[SetUpFixture]
+public class GlobalSetup
+{
+    [OneTimeSetUp]
+    public void GlobalOneTimeSetup()
+    {
+        // Initialize browser ONCE for ALL tests in the assembly
+        var sessionManager = BrowserSessionManager.Instance;
+        var browserType = Enum.Parse<BrowserType>(config.Browser, true);
+        sessionManager.InitializeBrowser(browserType);
+    }
+
+    [OneTimeTearDown]
+    public void GlobalOneTimeTearDown()
+    {
+        // Quit browser ONCE after ALL tests complete
+        BrowserSessionManager.Instance.QuitBrowser();
+    }
+}
+```
+
+**Test Fixture Usage (Reuses global browser):**
 
 ```csharp
 [TestFixture]
 [Parallelizable(ParallelScope.Self)]
 public class AngularHomePageLoginTests
 {
-    private static SeleniumHooks? _seleniumHooks;
-    private static AngularHomePage? _angularHomePage;
+    private BrowserSessionManager? _sessionManager;
+    private SeleniumHooks? _seleniumHooks;
+    private AngularHomePage? _angularHomePage;
 
     [OneTimeSetUp]
     public void OneTimeSetup()
     {
-        // Browser initialized ONCE for all tests in fixture
-        _seleniumHooks = new SeleniumHooks();
-        _seleniumHooks.InitializeDriver(BrowserType.Chrome);
+        // Get the SHARED browser session (already initialized)
+        _sessionManager = BrowserSessionManager.Instance;
+        _seleniumHooks = _sessionManager.GetBrowserSession();
         _angularHomePage = new AngularHomePage(_seleniumHooks);
-    }
-
-    [OneTimeTearDown]
-    public void OneTimeTearDown()
-    {
-        // Browser closed ONCE after all tests complete
-        _seleniumHooks?.QuitDriver();
     }
 
     [SetUp]
@@ -57,8 +82,8 @@ public class AngularHomePageLoginTests
     [TearDown]
     public void TearDown()
     {
-        // Clear cookies for test isolation (faster than restarting browser)
-        _seleniumHooks?.GetDriver().Manage().Cookies.DeleteAllCookies();
+        // Clear session for test isolation (faster than restarting browser)
+        _sessionManager?.ClearSession(); // Clears cookies, localStorage, sessionStorage
     }
 }
 ```

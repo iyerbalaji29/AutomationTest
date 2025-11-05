@@ -9,7 +9,7 @@ namespace UITests.Tests
     /// <summary>
     /// Full feature tests for Angular home page with focus on login functionality
     /// Tests verify that Angular page loads successfully and login button is visible
-    /// PERFORMANCE OPTIMIZED: Browser instance is reused across all tests in this fixture
+    /// PERFORMANCE OPTIMIZED: Uses global browser session - browser opens ONCE for entire test run
     /// </summary>
     [TestFixture]
     [Category("Feature")]
@@ -17,38 +17,31 @@ namespace UITests.Tests
     [Parallelizable(ParallelScope.Self)]
     public class AngularHomePageLoginTests
     {
-        private static SeleniumHooks? _seleniumHooks;
-        private static AngularHomePage? _angularHomePage;
-        private static TestConfiguration? _config;
+        private BrowserSessionManager? _sessionManager;
+        private SeleniumHooks? _seleniumHooks;
+        private AngularHomePage? _angularHomePage;
+        private TestConfiguration? _config;
 
         [OneTimeSetUp]
         public void OneTimeSetup()
         {
-            // Initialize configuration from TestContext parameters (from .runsettings file)
+            // Get configuration instance
             _config = TestConfiguration.Instance;
-            _config.InitializeFromTestContext(TestContext.Parameters);
 
-            // Initialize browser ONCE for all tests in this fixture
-            _seleniumHooks = new SeleniumHooks();
-            var browserType = Enum.Parse<BrowserType>(_config.Browser, true);
-            _seleniumHooks.InitializeDriver(browserType);
+            // Get the global browser session (initialized in GlobalSetup)
+            _sessionManager = BrowserSessionManager.Instance;
+            _seleniumHooks = _sessionManager.GetBrowserSession();
+
+            // Initialize page object
             _angularHomePage = new AngularHomePage(_seleniumHooks);
 
-            TestContext.WriteLine($"Browser initialized once for all tests in fixture: {browserType}");
-        }
-
-        [OneTimeTearDown]
-        public void OneTimeTearDown()
-        {
-            // Close browser ONCE after all tests complete
-            _seleniumHooks?.QuitDriver();
-            TestContext.WriteLine("Browser closed after all tests completed");
+            TestContext.WriteLine($"Test fixture using global browser session: {_config.Browser}");
         }
 
         [SetUp]
         public void Setup()
         {
-            // Navigate to home page before each test (faster than reopening browser)
+            // Navigate to home page before each test
             _angularHomePage!.NavigateToHomePage(_config!.BaseUrl);
         }
 
@@ -62,15 +55,8 @@ namespace UITests.Tests
                 _angularHomePage?.TakeHomePageScreenshot($"Failed_{testName}");
             }
 
-            // Clear cookies/cache to ensure test isolation without closing browser
-            try
-            {
-                _seleniumHooks?.GetDriver().Manage().Cookies.DeleteAllCookies();
-            }
-            catch
-            {
-                // Ignore if fails
-            }
+            // Clear session (cookies, localStorage, sessionStorage) for test isolation
+            _sessionManager?.ClearSession();
         }
 
         [Test]

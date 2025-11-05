@@ -9,38 +9,32 @@ namespace UITests.Tests
     /// <summary>
     /// NUnit tests for Angular home page
     /// Demonstrates both ReqNRoll (BDD) and NUnit (traditional) approaches
-    /// PERFORMANCE OPTIMIZED: Browser instance reused across tests
+    /// PERFORMANCE OPTIMIZED: Uses global browser session - browser opens ONCE for entire test run
     /// </summary>
     [TestFixture]
     [Category("Smoke")]
     [Parallelizable(ParallelScope.Self)]
     public class AngularHomePageNUnitTests
     {
-        private static SeleniumHooks? _seleniumHooks;
-        private static AngularHomePage? _angularHomePage;
-        private static TestConfiguration? _config;
+        private BrowserSessionManager? _sessionManager;
+        private SeleniumHooks? _seleniumHooks;
+        private AngularHomePage? _angularHomePage;
+        private TestConfiguration? _config;
 
         [OneTimeSetUp]
         public void OneTimeSetup()
         {
-            // Initialize configuration from TestContext parameters (from .runsettings file)
+            // Get configuration instance
             _config = TestConfiguration.Instance;
-            _config.InitializeFromTestContext(TestContext.Parameters);
 
-            // Initialize browser ONCE for all tests using browser from RunSettings
-            _seleniumHooks = new SeleniumHooks();
-            var browserType = Enum.Parse<BrowserType>(_config.Browser, true);
-            _seleniumHooks.InitializeDriver(browserType);
+            // Get the global browser session (initialized in GlobalSetup)
+            _sessionManager = BrowserSessionManager.Instance;
+            _seleniumHooks = _sessionManager.GetBrowserSession();
+
+            // Initialize page object
             _angularHomePage = new AngularHomePage(_seleniumHooks);
 
-            TestContext.WriteLine($"Browser initialized once for all tests in fixture: {browserType}");
-        }
-
-        [OneTimeTearDown]
-        public void OneTimeTearDown()
-        {
-            _seleniumHooks?.QuitDriver();
-            TestContext.WriteLine("Browser closed after all tests completed");
+            TestContext.WriteLine($"Test fixture using global browser session: {_config.Browser}");
         }
 
         [SetUp]
@@ -53,12 +47,8 @@ namespace UITests.Tests
         [TearDown]
         public void TearDown()
         {
-            // Clear cookies for test isolation
-            try
-            {
-                _seleniumHooks?.GetDriver().Manage().Cookies.DeleteAllCookies();
-            }
-            catch { }
+            // Clear session (cookies, localStorage, sessionStorage) for test isolation
+            _sessionManager?.ClearSession();
         }
 
         [Test]

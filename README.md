@@ -26,13 +26,16 @@ This framework is designed for testing Angular Single Page Applications (SPA) wi
 - **BDD approach** using ReqNRoll (SpecFlow successor)
 - **Traditional unit testing** using NUnit
 - **Data-driven testing** with SQL database setup
-- **Page Object Model** with inheritance hierarchy
+- **Page Object Model** with Template Method pattern
+- **Global browser session** (90%+ performance improvement)
 - **XPath-based element location** with extensible locator framework
 - **Angular-specific** page load verification
 - **Comprehensive reporting** (ExtentReports, TRX, Code Coverage)
 - **Azure DevOps integration** with YAML pipelines
 - **Tag-based test execution** for flexible test filtering
 - **CI/CD ready** with automated test reports
+
+**📘 [See detailed architecture documentation](ARCHITECTURE.md)** for information about browser session management, page abstraction patterns, and test lifecycle.
 
 ## Technology Stack
 

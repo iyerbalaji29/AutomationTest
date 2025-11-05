@@ -8,12 +8,13 @@ namespace UITests.Hooks
 {
     /// <summary>
     /// ReqNRoll hooks for test setup and teardown
-    /// Manages WebDriver lifecycle and test context
+    /// Uses global browser session - browser opens ONCE for entire test run
     /// </summary>
     [Binding]
     public class TestHooks
     {
         private readonly ScenarioContext _scenarioContext;
+        private BrowserSessionManager? _sessionManager;
         private SeleniumHooks? _seleniumHooks;
         private readonly TestConfiguration _config;
 
@@ -28,17 +29,14 @@ namespace UITests.Hooks
         {
             Logger.Info($"Starting scenario: {_scenarioContext.ScenarioInfo.Title}");
 
-            // Initialize Selenium Hooks
-            _seleniumHooks = new SeleniumHooks();
-
-            // Get browser from scenario tags or use default from config
-            var browserType = GetBrowserFromTags();
-            _seleniumHooks.InitializeDriver(browserType);
+            // Get the global browser session (initialized in GlobalSetup)
+            _sessionManager = BrowserSessionManager.Instance;
+            _seleniumHooks = _sessionManager.GetBrowserSession();
 
             // Store in scenario context for access in step definitions
             _scenarioContext["SeleniumHooks"] = _seleniumHooks;
 
-            Logger.Info($"Initialized {browserType} browser for scenario: {_scenarioContext.ScenarioInfo.Title}");
+            Logger.Info($"Scenario using global browser session: {_scenarioContext.ScenarioInfo.Title}");
         }
 
         [AfterScenario]
@@ -64,8 +62,9 @@ namespace UITests.Hooks
             }
             finally
             {
-                // Always quit driver
-                _seleniumHooks?.QuitDriver();
+                // Clear session (cookies, localStorage, sessionStorage) for test isolation
+                // Do NOT quit the browser - it's shared across all scenarios
+                _sessionManager?.ClearSession();
             }
         }
 

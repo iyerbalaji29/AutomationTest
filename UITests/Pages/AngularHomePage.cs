@@ -1,15 +1,19 @@
 using Common.PageObjects;
 using Common.Selenium;
+using Common.Utilities;
 using Shouldly;
 
 namespace UITests.Pages
 {
     /// <summary>
     /// Page Object for Angular.io Home Page
-    /// Inherits from BasePage to get all common functionality
+    /// Inherits from BasePage and demonstrates method overriding capabilities
+    /// Shows how to customize base behavior for page-specific needs
     /// </summary>
     public class AngularHomePage : BasePage
     {
+        #region Page Element Locators
+
         // XPath locators for page elements
         private const string HomePageLogoXPath = "//a[@aria-label='Angular']";
         private const string GetStartedButtonXPath = "//a[contains(text(),'Get Started')]";
@@ -19,21 +23,40 @@ namespace UITests.Pages
         private const string SearchButtonXPath = "//button[@aria-label='Search' or contains(@class,'search')]";
         private const string LoginButtonXPath = "//a[contains(text(),'Login') or contains(text(),'Sign in') or @aria-label='Login' or @aria-label='Sign in']";
 
+        #endregion
+
         public AngularHomePage(SeleniumHooks seleniumHooks) : base(seleniumHooks)
         {
         }
 
+        #region Overridden Base Methods - Demonstrates customization
+
         /// <summary>
-        /// Navigate to Angular home page
+        /// Override: Custom post-navigation logic for Angular home page
+        /// Automatically waits for Angular to load after navigation
         /// </summary>
-        public void NavigateToHomePage(string url)
+        protected override void OnPageNavigated(string url)
         {
-            NavigateTo(url);
+            Logger.Info("Angular home page navigated - waiting for Angular load");
             WaitForAngularLoad();
         }
 
         /// <summary>
-        /// Verify if Angular home page is loaded
+        /// Override: Custom Angular load completion logic
+        /// Verifies Angular logo is displayed after Angular loads
+        /// </summary>
+        protected override void OnAngularLoadComplete()
+        {
+            Logger.Info("Angular load complete - verifying logo is visible");
+            if (!IsElementDisplayed(HomePageLogoXPath))
+            {
+                Logger.Warn("Angular logo not immediately visible after load");
+            }
+        }
+
+        /// <summary>
+        /// Override: Custom page load verification for Angular home page
+        /// Ensures both page load and Angular load are complete, and logo is visible
         /// </summary>
         public override bool IsPageLoaded()
         {
@@ -41,6 +64,33 @@ namespace UITests.Pages
             WaitForAngularLoad();
             return IsElementDisplayed(HomePageLogoXPath);
         }
+
+        /// <summary>
+        /// Override: Custom click behavior for Angular home page
+        /// Adds Angular-specific wait after click
+        /// </summary>
+        protected override void AfterElementClick(string xpath)
+        {
+            Logger.Info("Element clicked - waiting briefly for Angular to process");
+            System.Threading.Thread.Sleep(500); // Brief pause for Angular to process click
+        }
+
+        #endregion
+
+        #region Page-Specific Navigation Methods
+
+        /// <summary>
+        /// Navigate to Angular home page
+        /// Uses base NavigateTo which now automatically handles Angular waiting via OnPageNavigated
+        /// </summary>
+        public void NavigateToHomePage(string url)
+        {
+            NavigateTo(url); // Base method calls OnPageNavigated which waits for Angular
+        }
+
+        #endregion
+
+        #region Page-Specific Assertion Methods
 
         /// <summary>
         /// Assert that Angular logo is displayed
@@ -157,5 +207,7 @@ namespace UITests.Pages
         {
             return IsElementDisplayed(LoginButtonXPath);
         }
+
+        #endregion
     }
 }
