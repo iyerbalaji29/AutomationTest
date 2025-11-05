@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <TestRunParameters>
+    <!-- Test Settings -->
+    <Parameter name="BaseUrl" value="https://angular.io" />
+    <Parameter name="Browser" value="Chrome" />
+    <Parameter name="ImplicitWaitSeconds" value="10" />
+    <Parameter name="ExplicitWaitSeconds" value="30" />
+    <Parameter name="PageLoadTimeoutSeconds" value="60" />
+    <Parameter name="HeadlessMode" value="true" />
+    <Parameter name="ScreenshotOnFailure" value="true" />
+    <Parameter name="ScreenshotPath" value="Screenshots/Prod" />
+
+    <!-- Database Settings -->
+    <Parameter name="ConnectionString" value="Server=prod-server;Database=TestDB_Prod;Integrated Security=true;TrustServerCertificate=True;" />
+
+    <!-- Logging Settings -->
+    <Parameter name="LogLevel" value="Warning" />
+    <Parameter name="LogPath" value="Logs/Prod" />
+
+    <!-- Environment -->
+    <Parameter name="Environment" value="Prod" />
+  </TestRunParameters>
+
+  <RunConfiguration>
+    <!-- Parallel execution: 0 = use all available cores -->
+    <MaxCpuCount>0</MaxCpuCount>
+    <ResultsDirectory>.\TestResults</ResultsDirectory>
+    <TargetPlatform>x64</TargetPlatform>
+    <TestSessionTimeout>3600000</TestSessionTimeout>
+  </RunConfiguration>
+
+  <!-- NUnit specific settings for parallel execution -->
+  <NUnit>
+    <NumberOfTestWorkers>8</NumberOfTestWorkers>
+  </NUnit>
+</RunSettings>

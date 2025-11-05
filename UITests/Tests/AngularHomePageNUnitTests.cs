@@ -9,39 +9,64 @@ namespace UITests.Tests
     /// <summary>
     /// NUnit tests for Angular home page
     /// Demonstrates both ReqNRoll (BDD) and NUnit (traditional) approaches
+    /// PERFORMANCE OPTIMIZED: Browser instance reused across tests
     /// </summary>
     [TestFixture]
     [Category("Smoke")]
+    [Parallelizable(ParallelScope.Self)]
     public class AngularHomePageNUnitTests
     {
-        private SeleniumHooks? _seleniumHooks;
-        private AngularHomePage? _angularHomePage;
-        private TestConfiguration? _config;
+        private static SeleniumHooks? _seleniumHooks;
+        private static AngularHomePage? _angularHomePage;
+        private static TestConfiguration? _config;
+
+        [OneTimeSetUp]
+        public void OneTimeSetup()
+        {
+            // Initialize configuration from TestContext parameters (from .runsettings file)
+            _config = TestConfiguration.Instance;
+            _config.InitializeFromTestContext(TestContext.Parameters);
+
+            // Initialize browser ONCE for all tests using browser from RunSettings
+            _seleniumHooks = new SeleniumHooks();
+            var browserType = Enum.Parse<BrowserType>(_config.Browser, true);
+            _seleniumHooks.InitializeDriver(browserType);
+            _angularHomePage = new AngularHomePage(_seleniumHooks);
+
+            TestContext.WriteLine($"Browser initialized once for all tests in fixture: {browserType}");
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            _seleniumHooks?.QuitDriver();
+            TestContext.WriteLine("Browser closed after all tests completed");
+        }
 
         [SetUp]
         public void Setup()
         {
-            _config = TestConfiguration.Instance;
-            _seleniumHooks = new SeleniumHooks();
-            _seleniumHooks.InitializeDriver(BrowserType.Chrome);
-            _angularHomePage = new AngularHomePage(_seleniumHooks);
+            // Navigate to home page before each test
+            _angularHomePage!.NavigateToHomePage(_config!.BaseUrl);
         }
 
         [TearDown]
         public void TearDown()
         {
-            _seleniumHooks?.QuitDriver();
+            // Clear cookies for test isolation
+            try
+            {
+                _seleniumHooks?.GetDriver().Manage().Cookies.DeleteAllCookies();
+            }
+            catch { }
         }
 
         [Test]
         [Description("Verify Angular home page loads successfully")]
         public void VerifyAngularHomePageLoads()
         {
-            // Arrange & Act
-            _angularHomePage!.NavigateToHomePage(_config!.BaseUrl);
-
-            // Assert
-            _angularHomePage.AssertAngularPageLoaded();
+            // Assert - Setup already navigated to home page
+            _angularHomePage!.AssertAngularPageLoaded();
             _angularHomePage.AssertLogoIsDisplayed();
             _angularHomePage.AssertPageTitle("Angular");
         }
@@ -50,70 +75,18 @@ namespace UITests.Tests
         [Description("Verify main navigation elements are present")]
         public void VerifyNavigationElements()
         {
-            // Arrange & Act
-            _angularHomePage!.NavigateToHomePage(_config!.BaseUrl);
-
-            // Assert
-            _angularHomePage.AssertLogoIsDisplayed();
+            // Assert - Setup already navigated to home page
+            _angularHomePage!.AssertLogoIsDisplayed();
             _angularHomePage.AssertGetStartedButtonExists();
             _angularHomePage.AssertDocsLinkIsVisible();
         }
 
         [Test]
-        [Category("Chrome")]
         [Description("Verify page title contains Angular")]
         public void VerifyPageTitle()
         {
-            // Arrange & Act
-            _angularHomePage!.NavigateToHomePage(_config!.BaseUrl);
-
-            // Assert
-            _angularHomePage.AssertPageTitle("Angular");
-        }
-    }
-
-    /// <summary>
-    /// Multi-browser tests using NUnit
-    /// Demonstrates parameterized tests for cross-browser testing
-    /// </summary>
-    [TestFixture]
-    [Category("CrossBrowser")]
-    public class AngularHomePageCrossBrowserTests
-    {
-        private SeleniumHooks? _seleniumHooks;
-        private AngularHomePage? _angularHomePage;
-        private TestConfiguration? _config;
-
-        [SetUp]
-        public void Setup()
-        {
-            _config = TestConfiguration.Instance;
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            _seleniumHooks?.QuitDriver();
-        }
-
-        [Test]
-        [TestCase(BrowserType.Chrome)]
-        [TestCase(BrowserType.Firefox)]
-        [TestCase(BrowserType.Edge)]
-        [Description("Verify Angular page loads in different browsers")]
-        public void VerifyAngularPageInDifferentBrowsers(BrowserType browserType)
-        {
-            // Arrange
-            _seleniumHooks = new SeleniumHooks();
-            _seleniumHooks.InitializeDriver(browserType);
-            _angularHomePage = new AngularHomePage(_seleniumHooks);
-
-            // Act
-            _angularHomePage.NavigateToHomePage(_config!.BaseUrl);
-
-            // Assert
-            _angularHomePage.AssertAngularPageLoaded();
-            _angularHomePage.AssertLogoIsDisplayed();
+            // Assert - Setup already navigated to home page
+            _angularHomePage!.AssertPageTitle("Angular");
         }
     }
 }

@@ -17,6 +17,7 @@ namespace UITests.Pages
         private const string DocsLinkXPath = "//a[contains(text(),'Docs')]";
         private const string PageHeadingXPath = "//h1 | //h2";
         private const string SearchButtonXPath = "//button[@aria-label='Search' or contains(@class,'search')]";
+        private const string LoginButtonXPath = "//a[contains(text(),'Login') or contains(text(),'Sign in') or @aria-label='Login' or @aria-label='Sign in']";
 
         public AngularHomePage(SeleniumHooks seleniumHooks) : base(seleniumHooks)
         {
@@ -129,6 +130,32 @@ namespace UITests.Pages
         public void TakeHomePageScreenshot(string fileName)
         {
             TakeScreenshot($"HomePage_{fileName}");
+        }
+
+        /// <summary>
+        /// Assert that Login button is visible
+        /// </summary>
+        public void AssertLoginButtonIsVisible()
+        {
+            var isDisplayed = IsElementDisplayed(LoginButtonXPath);
+            isDisplayed.ShouldBeTrue("Login button should be visible on the home page");
+        }
+
+        /// <summary>
+        /// Click on Login button
+        /// </summary>
+        public void ClickLoginButton()
+        {
+            WaitForElement(LoginButtonXPath);
+            ClickElement(LoginButtonXPath);
+        }
+
+        /// <summary>
+        /// Verify if Login button exists on page
+        /// </summary>
+        public bool IsLoginButtonDisplayed()
+        {
+            return IsElementDisplayed(LoginButtonXPath);
         }
     }
 }

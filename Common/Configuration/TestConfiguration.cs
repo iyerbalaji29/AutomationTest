@@ -1,23 +1,18 @@
-using Microsoft.Extensions.Configuration;
-
 namespace Common.Configuration
 {
     /// <summary>
     /// Central configuration manager following Single Responsibility Principle
+    /// Now reads from .runsettings files via TestContext
     /// </summary>
     public class TestConfiguration
     {
         private static TestConfiguration? _instance;
         private static readonly object _lock = new object();
-        private readonly IConfiguration _configuration;
+        private readonly Dictionary<string, string> _parameters;
 
         private TestConfiguration()
         {
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-
-            _configuration = builder.Build();
+            _parameters = new Dictionary<string, string>();
         }
 
         public static TestConfiguration Instance
@@ -35,21 +30,44 @@ namespace Common.Configuration
             }
         }
 
-        public string BaseUrl => _configuration["TestSettings:BaseUrl"] ?? "https://angular.io";
-        public string Browser => _configuration["TestSettings:Browser"] ?? "Chrome";
-        public int ImplicitWaitSeconds => int.Parse(_configuration["TestSettings:ImplicitWaitSeconds"] ?? "10");
-        public int ExplicitWaitSeconds => int.Parse(_configuration["TestSettings:ExplicitWaitSeconds"] ?? "30");
-        public int PageLoadTimeoutSeconds => int.Parse(_configuration["TestSettings:PageLoadTimeoutSeconds"] ?? "60");
-        public bool HeadlessMode => bool.Parse(_configuration["TestSettings:HeadlessMode"] ?? "false");
-        public bool ScreenshotOnFailure => bool.Parse(_configuration["TestSettings:ScreenshotOnFailure"] ?? "true");
-        public string ScreenshotPath => _configuration["TestSettings:ScreenshotPath"] ?? "Screenshots";
-        public string ConnectionString => _configuration["DatabaseSettings:ConnectionString"] ?? string.Empty;
-        public string LogLevel => _configuration["Logging:LogLevel"] ?? "Information";
-        public string LogPath => _configuration["Logging:LogPath"] ?? "Logs";
+        /// <summary>
+        /// Initialize configuration from TestContext (called by test hooks)
+        /// </summary>
+        public void InitializeFromTestContext(IDictionary<string, object?>? testParameters)
+        {
+            if (testParameters == null) return;
+
+            _parameters.Clear();
+            foreach (var param in testParameters)
+            {
+                if (param.Value != null)
+                {
+                    _parameters[param.Key] = param.Value.ToString() ?? string.Empty;
+                }
+            }
+        }
+
+        private string GetParameter(string key, string defaultValue = "")
+        {
+            return _parameters.TryGetValue(key, out var value) ? value : defaultValue;
+        }
+
+        public string BaseUrl => GetParameter("BaseUrl", "https://angular.io");
+        public string Browser => GetParameter("Browser", "Chrome");
+        public int ImplicitWaitSeconds => int.Parse(GetParameter("ImplicitWaitSeconds", "10"));
+        public int ExplicitWaitSeconds => int.Parse(GetParameter("ExplicitWaitSeconds", "30"));
+        public int PageLoadTimeoutSeconds => int.Parse(GetParameter("PageLoadTimeoutSeconds", "60"));
+        public bool HeadlessMode => bool.Parse(GetParameter("HeadlessMode", "false"));
+        public bool ScreenshotOnFailure => bool.Parse(GetParameter("ScreenshotOnFailure", "true"));
+        public string ScreenshotPath => GetParameter("ScreenshotPath", "Screenshots");
+        public string ConnectionString => GetParameter("ConnectionString", string.Empty);
+        public string LogLevel => GetParameter("LogLevel", "Information");
+        public string LogPath => GetParameter("LogPath", "Logs");
+        public string Environment => GetParameter("Environment", "Dev");
 
         public string GetValue(string key)
         {
-            return _configuration[key] ?? string.Empty;
+            return GetParameter(key, string.Empty);
         }
     }
 }

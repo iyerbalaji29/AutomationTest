@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <TestRunParameters>
+    <!-- Test Settings -->
+    <Parameter name="BaseUrl" value="https://angular.io" />
+    <Parameter name="Browser" value="Firefox" />
+    <Parameter name="ImplicitWaitSeconds" value="10" />
+    <Parameter name="ExplicitWaitSeconds" value="30" />
+    <Parameter name="PageLoadTimeoutSeconds" value="60" />
+    <Parameter name="HeadlessMode" value="false" />
+    <Parameter name="ScreenshotOnFailure" value="true" />
+    <Parameter name="ScreenshotPath" value="Screenshots/Firefox" />
+
+    <!-- Database Settings -->
+    <Parameter name="ConnectionString" value="Server=localhost;Database=TestDB;Integrated Security=true;TrustServerCertificate=True;" />
+
+    <!-- Logging Settings -->
+    <Parameter name="LogLevel" value="Information" />
+    <Parameter name="LogPath" value="Logs/Firefox" />
+
+    <!-- Environment -->
+    <Parameter name="Environment" value="Firefox" />
+  </TestRunParameters>
+
+  <RunConfiguration>
+    <!-- Parallel execution: 0 = use all available cores -->
+    <MaxCpuCount>0</MaxCpuCount>
+    <ResultsDirectory>.\TestResults</ResultsDirectory>
+    <TargetPlatform>x64</TargetPlatform>
+    <TestSessionTimeout>3600000</TestSessionTimeout>
+  </RunConfiguration>
+
+  <!-- NUnit specific settings for parallel execution -->
+  <NUnit>
+    <NumberOfTestWorkers>4</NumberOfTestWorkers>
+  </NUnit>
+</RunSettings>

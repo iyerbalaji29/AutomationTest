@@ -132,5 +132,14 @@ namespace Common.PageObjects
             WaitForPageLoad();
             return !string.IsNullOrEmpty(GetPageTitle());
         }
+
+        /// <summary>
+        /// Set browser window size
+        /// </summary>
+        public virtual void SetBrowserSize(int width, int height)
+        {
+            Logger.Info($"Setting browser size to {width}x{height}");
+            Driver.Manage().Window.Size = new System.Drawing.Size(width, height);
+        }
     }
 }
